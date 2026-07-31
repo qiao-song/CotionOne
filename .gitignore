@@ -1,0 +1,30 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+node_modules/
+dist/
+.vite/
+
+# Uploads (keep directories, ignore files)
+uploads/avatars/*
+uploads/goods/*
+!uploads/avatars/.gitkeep
+!uploads/goods/.gitkeep
+
+# Database
+*.db
+*.sqlite3
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Migrations
+migrations/versions/*.pyc

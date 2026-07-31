@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: tbao-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 5w/lUtmgka88eoT9Ci+k1jbtKdw=
+      MYSQL_DATABASE: tbao
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p5w/lUtmgka88eoT9Ci+k1jbtKdw="]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tbao-net
+
+  backend:
+    build: ./backend
+    container_name: tbao-backend
+    restart: always
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: 5w/lUtmgka88eoT9Ci+k1jbtKdw=
+      DB_NAME: tbao
+      SECRET_KEY: 6a49666d0a660e3b75f6569a003a8a70
+      JWT_SECRET_KEY: 969c5c2c08ca6447e469473d7570a63c
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      - tbao-net
+
+  nginx:
+    build: ./frontend
+    container_name: tbao-nginx
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./uploads:/usr/share/nginx/html/uploads
+    networks:
+      - tbao-net
+
+volumes:
+  mysql_data:
+
+networks:
+  tbao-net:
+    driver: bridge

@@ -14,6 +14,7 @@ class Goods(db.Model):
     video = db.Column(db.String(500), nullable=True)
     video_likes = db.Column(db.Integer, default=0)
     video_shares = db.Column(db.Integer, default=0)
+    tags = db.Column(db.JSON, nullable=True, default=list)
     seller_id = db.Column(db.BigInteger, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -30,6 +31,7 @@ class Goods(db.Model):
             'video': self.video or '',
             'video_likes': self.video_likes or 0,
             'video_shares': self.video_shares or 0,
+            'tags': self.tags or [],
             'seller_id': self.seller_id,
             'seller_name': self.seller.username if self.seller else None,
             'seller_avatar': self.seller.avatar if self.seller else None,

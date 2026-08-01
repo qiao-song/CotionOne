@@ -49,6 +49,11 @@
           </div>
         </div>
 
+        <!-- Tags -->
+        <div class="product-tags" v-if="goods.tags && goods.tags.length > 0">
+          <span v-for="tag in goods.tags" :key="tag" class="product-tag" @click="handleTagClick(tag)">{{ tag }}</span>
+        </div>
+
         <!-- Seller info -->
         <div class="seller-card" @click="goToSeller(goods.seller_id)">
           <img :src="goods.seller_avatar || '/static/default.png'" class="seller-avatar" alt="seller" />
@@ -110,17 +115,60 @@
         <span class="review-avg">平均 {{ avgRating }} 分</span>
       </h3>
 
+      <!-- Review form (anyone logged in can review) -->
+      <div class="review-form" v-if="authStore.isLoggedIn">
+        <div class="review-form-header">
+          <span class="review-form-title">写评价</span>
+        </div>
+        <div class="review-form-body">
+          <div class="rating-select">
+            <span class="rating-label">评分：</span>
+            <button
+              v-for="s in 5"
+              :key="s"
+              :class="['star-btn', { active: reviewRating >= s }]"
+              @click="reviewRating = s"
+            >★</button>
+          </div>
+          <textarea
+            v-model="reviewContent"
+            class="review-textarea"
+            placeholder="分享你的使用感受..."
+            maxlength="500"
+          ></textarea>
+          <button
+            class="btn-primary btn-sm"
+            @click="submitReview"
+            :disabled="submittingReview || !reviewContent.trim()"
+          >
+            {{ submittingReview ? '提交中...' : '发表评价' }}
+          </button>
+        </div>
+      </div>
+      <div class="review-form" v-else>
+        <p class="review-login-hint">
+          <router-link :to="`/login?redirect=${encodeURIComponent($route.fullPath)}`">登录</router-link> 后即可评价
+        </p>
+      </div>
+
       <div v-if="loadingReviews" class="loading-text">加载中...</div>
       <div v-else-if="reviews.length === 0" class="no-reviews">
         <div class="no-review-icon">📝</div>
-        <p>暂无评价</p>
-        <p class="review-hint">购买到货后才可以评论</p>
+        <p>暂无评价，成为第一个评价的人吧！</p>
       </div>
       <div v-else class="review-list">
         <div v-for="r in reviews" :key="r.id" class="review-item">
           <div class="review-header">
-            <img :src="r.user_avatar || '/static/default.png'" class="review-avatar" alt="" />
-            <span class="review-username">{{ r.username }}</span>
+            <img
+              :src="r.user_avatar || '/static/default.png'"
+              class="review-avatar"
+              alt=""
+              @click="goToSeller(r.user_id)"
+            />
+            <span class="review-username" @click="goToSeller(r.user_id)">{{ r.username }}</span>
+            <span v-if="r.purchase" class="purchase-badge" title="已购买">
+              已购 {{ r.purchase.quantity }}件 · ¥{{ parseFloat(r.purchase.goods_price).toFixed(2) }}
+            </span>
             <div class="review-stars">
               <span v-for="s in 5" :key="s" :class="['star', { filled: s <= r.rating }]">★</span>
             </div>
@@ -148,7 +196,7 @@ import { useAuthStore } from '../stores/auth'
 import { useCartStore } from '../stores/cart'
 import { useToast } from '../composables/useToast'
 import { getGoodsDetail } from '../api/goods'
-import { getGoodsReviews } from '../api/review'
+import { getGoodsReviews, createReview } from '../api/review'
 
 const route = useRoute()
 const router = useRouter()
@@ -169,6 +217,32 @@ const avgRating = ref(0)
 const loadingReviews = ref(false)
 const loadingMoreReviews = ref(false)
 const reviewHasMore = computed(() => reviews.value.length < reviewTotal.value)
+
+// Review form
+const reviewRating = ref(5)
+const reviewContent = ref('')
+const submittingReview = ref(false)
+
+async function submitReview() {
+  if (!reviewContent.value.trim() || submittingReview.value) return
+  submittingReview.value = true
+  try {
+    await createReview({
+      goods_id: parseInt(route.params.id),
+      rating: reviewRating.value,
+      content: reviewContent.value.trim()
+    })
+    toast.success('评价发表成功')
+    reviewContent.value = ''
+    reviewRating.value = 5
+    // Refresh reviews
+    await fetchReviews(1)
+  } catch (e) {
+    toast.error(e.msg || '评价失败')
+  } finally {
+    submittingReview.value = false
+  }
+}
 
 const placeholderImage = 'data:image/svg+xml,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" fill="#F3F4F6"><rect width="400" height="400"/><text x="200" y="205" text-anchor="middle" fill="#9CA3AF" font-size="16">暂无图片</text></svg>'
@@ -267,6 +341,10 @@ function handleBuyNow() {
 function goToSeller(sellerId) {
   if (!sellerId) return
   router.push(`/seller/${sellerId}`)
+}
+
+function handleTagClick(tag) {
+  router.push(`/?tag=${encodeURIComponent(tag)}`)
 }
 
 function scrollToReviews() {
@@ -468,6 +546,33 @@ watch(() => route.params.id, async () => {
   width: 1px;
   height: 30px;
   background: linear-gradient(180deg, transparent, var(--border), transparent);
+}
+
+/* Product tags */
+.product-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.product-tag {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1.5px solid var(--border);
+  background: #fff;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.product-tag:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: linear-gradient(135deg, #FFF7ED, #FFEDD5);
 }
 
 .seller-card {
@@ -717,12 +822,36 @@ watch(() => route.params.id, async () => {
   height: 32px;
   border-radius: 50%;
   object-fit: cover;
+  cursor: pointer;
+  transition: transform 0.2s;
+  border: 2px solid transparent;
+}
+
+.review-avatar:hover {
+  transform: scale(1.15);
+  border-color: var(--primary);
 }
 
 .review-username {
   font-size: 14px;
   font-weight: 500;
   color: var(--text);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.review-username:hover {
+  color: var(--primary);
+}
+
+.purchase-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-light);
+  padding: 2px 10px;
+  border-radius: 10px;
+  white-space: nowrap;
 }
 
 .review-stars {
@@ -770,6 +899,92 @@ watch(() => route.params.id, async () => {
   color: var(--text-muted);
   margin-top: 6px;
   opacity: 0.7;
+}
+
+/* Review Form */
+.review-form {
+  padding: 18px;
+  margin-bottom: 16px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+}
+
+.review-form-header {
+  margin-bottom: 12px;
+}
+
+.review-form-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.rating-select {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.rating-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-right: 4px;
+}
+
+.star-btn {
+  min-width: auto;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  font-size: 24px;
+  background: none;
+  border: none;
+  color: #D1D5DB;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.star-btn:hover {
+  color: #F59E0B;
+  transform: scale(1.15);
+}
+
+.star-btn.active {
+  color: #F59E0B;
+}
+
+.review-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  margin-bottom: 12px;
+  resize: vertical;
+  font-family: inherit;
+  background: var(--card-bg);
+  color: var(--text);
+}
+
+.review-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+  outline: none;
+}
+
+.review-login-hint {
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted);
+  margin: 8px 0;
+}
+
+.review-login-hint a {
+  color: var(--primary);
+  font-weight: 500;
 }
 
 .loading-text, .empty {

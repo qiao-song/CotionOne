@@ -28,3 +28,5 @@ MAX_IMAGE_COUNT = 9
 MAX_VIDEO_SIZE = 50 * 1024 * 1024  # 50MB
 MAX_VIDEO_DURATION = 15  # seconds (enforced client-side)
 VIDEOS_FOLDER = os.path.join(UPLOAD_FOLDER, 'videos')
+EMOJI_FOLDER = os.path.join(UPLOAD_FOLDER, 'emojis')
+POSTS_FOLDER = os.path.join(UPLOAD_FOLDER, 'posts')

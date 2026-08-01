@@ -19,6 +19,35 @@
       </div>
     </div>
 
+    <!-- Theme Switcher -->
+    <div class="card theme-card">
+      <h3 class="card-title">🎨 主题切换</h3>
+      <p class="theme-desc">选择你喜欢的配色方案，全局生效</p>
+      <div class="theme-options">
+        <div
+          v-for="opt in themeStore.themeOptions"
+          :key="opt.key"
+          class="theme-option"
+          :class="{ active: opt.active }"
+          @click="themeStore.setTheme(opt.key)"
+        >
+          <div class="theme-preview">
+            <span
+              v-for="(color, ci) in opt.preview"
+              :key="ci"
+              class="theme-dot"
+              :style="{ background: color }"
+            ></span>
+          </div>
+          <div class="theme-info">
+            <span class="theme-name">{{ opt.label }}</span>
+            <span class="theme-desc-text">{{ opt.description }}</span>
+          </div>
+          <div class="theme-check" v-if="opt.active">✓</div>
+        </div>
+      </div>
+    </div>
+
     <div class="profile-grid">
       <!-- Avatar & Info Section -->
       <div class="card profile-card">
@@ -87,10 +116,12 @@
 <script setup>
 import { ref, onMounted, nextTick } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { useThemeStore } from '../stores/theme'
 import { useToast } from '../composables/useToast'
 import { updateProfile, changePassword, getBalance } from '../api/user'
 
 const authStore = useAuthStore()
+const themeStore = useThemeStore()
 const toast = useToast()
 
 const balanceData = ref(null)
@@ -247,15 +278,15 @@ onMounted(() => {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, #F97316, #FBBF24);
+  background: var(--gradient-warm);
   opacity: 0;
   transition: opacity 0.3s;
 }
 
 .balance-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 12px 28px rgba(249, 115, 22, 0.1);
-  border-color: rgba(249, 115, 22, 0.12);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.08);
+  border-color: var(--border-light);
 }
 
 .balance-card:hover::before {
@@ -274,7 +305,7 @@ onMounted(() => {
 .balance-value {
   font-size: 30px;
   font-weight: 800;
-  background: linear-gradient(135deg, #F97316, #EA580C);
+  background: var(--gradient-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -348,7 +379,7 @@ onMounted(() => {
 
 .avatar-wrapper:hover {
   border-color: var(--primary);
-  box-shadow: 0 8px 24px rgba(249, 115, 22, 0.2);
+  box-shadow: 0 8px 24px var(--primary-light);
   transform: scale(1.03);
 }
 
@@ -505,5 +536,95 @@ onMounted(() => {
   color: var(--accent);
   font-size: 14px;
   margin-bottom: 8px;
+}
+
+/* === Theme Switcher === */
+.theme-card {
+  margin-bottom: 24px;
+}
+
+.theme-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+
+.theme-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 14px;
+  border: 2px solid var(--border);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  background: var(--card-bg);
+  position: relative;
+}
+
+.theme-option:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  transform: translateX(4px);
+}
+
+.theme-option.active {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  box-shadow: 0 0 0 4px var(--primary-light);
+}
+
+.theme-preview {
+  display: flex;
+  gap: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.theme-dot {
+  width: 32px;
+  height: 32px;
+}
+
+.theme-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.theme-name {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.theme-desc-text {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.theme-check {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 </style>

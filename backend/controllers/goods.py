@@ -3,10 +3,11 @@ import random
 from datetime import datetime
 from flask import Blueprint, request, g
 from marshmallow import ValidationError
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from models import db
 from models.goods import Goods
+from models.user import User
 from models.order import Order
 from models.review import Review
 from schemas.goods import GoodsCreateSchema, GoodsUpdateSchema
@@ -16,6 +17,27 @@ from utils.upload import save_upload, save_video
 from config import MAX_IMAGE_COUNT
 
 goods_bp = Blueprint('goods', __name__)
+
+# Predefined tag options
+PREDEFINED_TAGS = ['数码', '家电', '文创', '工具', '文具']
+
+
+@goods_bp.route('/api/goods/tags', methods=['GET'])
+def list_tags():
+    """List all available tags (predefined + popular from goods)."""
+    # Get all unique tags from existing goods
+    all_goods = Goods.query.filter(
+        Goods.status == 1,
+        Goods.deleted_at.is_(None)
+    ).all()
+    used_tags = set()
+    for g in all_goods:
+        if g.tags:
+            for t in g.tags:
+                used_tags.add(t)
+    # Merge predefined + used
+    all_tags = list(dict.fromkeys(PREDEFINED_TAGS + sorted(used_tags)))
+    return success(data=all_tags)
 
 
 @goods_bp.route('/api/goods/<int:goods_id>', methods=['GET'])
@@ -65,15 +87,85 @@ def get_goods_detail(goods_id):
 
 @goods_bp.route('/api/goods', methods=['GET'])
 def list_goods():
-    """Public goods gallery: status=1, not deleted, newest first."""
+    """Public goods gallery with search, filters, and random sort."""
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 20, type=int)
     page_size = min(page_size, 100)
 
+    keyword = request.args.get('keyword', '').strip()
+    tag = request.args.get('tag', '').strip()
+    seller_name = request.args.get('seller_name', '').strip()
+    price_min = request.args.get('price_min', type=float)
+    price_max = request.args.get('price_max', type=float)
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+    sort = request.args.get('sort', 'newest').strip()  # newest, random, price_asc, price_desc
+    exclude_ids = request.args.get('exclude_ids', '').strip()
+
+    # Base query
     query = Goods.query.filter(
         Goods.status == 1,
         Goods.deleted_at.is_(None)
-    ).order_by(Goods.created_at.desc())
+    )
+
+    # Keyword search (title + description)
+    if keyword:
+        query = query.filter(or_(
+            Goods.title.contains(keyword),
+            Goods.description.contains(keyword)
+        ))
+
+    # Tag filter
+    if tag:
+        # JSON_CONTAINS equivalent: filter goods where tags JSON array contains the tag
+        query = query.filter(
+            db.func.json_contains(Goods.tags, json.dumps(tag))
+        )
+
+    # Seller name search
+    if seller_name:
+        query = query.join(User, Goods.seller_id == User.id).filter(
+            User.username.contains(seller_name)
+        )
+
+    # Price range
+    if price_min is not None:
+        query = query.filter(Goods.price >= price_min)
+    if price_max is not None:
+        query = query.filter(Goods.price <= price_max)
+
+    # Date range
+    if date_from:
+        try:
+            dt_from = datetime.strptime(date_from, '%Y-%m-%d')
+            query = query.filter(Goods.created_at >= dt_from)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            dt_to = datetime.strptime(date_to, '%Y-%m-%d')
+            query = query.filter(Goods.created_at <= dt_to)
+        except ValueError:
+            pass
+
+    # Exclude previously seen IDs (for random sort dedup)
+    if exclude_ids:
+        try:
+            excl = [int(x) for x in exclude_ids.split(',') if x.strip()]
+            if excl:
+                query = query.filter(~Goods.id.in_(excl))
+        except ValueError:
+            pass
+
+    # Sorting
+    if sort == 'random':
+        query = query.order_by(func.rand())
+    elif sort == 'price_asc':
+        query = query.order_by(Goods.price.asc(), Goods.created_at.desc())
+    elif sort == 'price_desc':
+        query = query.order_by(Goods.price.desc(), Goods.created_at.desc())
+    else:  # newest
+        query = query.order_by(Goods.created_at.desc())
 
     total = query.count()
     items = query.offset((page - 1) * page_size).limit(page_size).all()
@@ -93,13 +185,26 @@ def create_goods():
     title = request.form.get('title', '').strip()
     price = request.form.get('price', '').strip()
     description = request.form.get('description', '').strip()
+    tags_str = request.form.get('tags', '').strip()
+
+    # Parse tags from JSON string or comma-separated
+    tags = []
+    if tags_str:
+        try:
+            tags = json.loads(tags_str)
+        except (json.JSONDecodeError, TypeError):
+            tags = [t.strip() for t in tags_str.split(',') if t.strip()]
+        # Limit to 10 tags, each max 20 chars
+        tags = tags[:10]
+        tags = [t[:20] for t in tags]
 
     # Validate form fields
     try:
         data = GoodsCreateSchema().load({
             'title': title,
             'price': price,
-            'description': description or None
+            'description': description or None,
+            'tags': tags
         })
     except ValidationError as e:
         return fail(str(e.messages))
@@ -128,6 +233,7 @@ def create_goods():
             description=data.get('description', ''),
             images=image_urls,
             video=video_url,
+            tags=data.get('tags', []),
             status=1,
             seller_id=g.user_id
         )
@@ -152,6 +258,7 @@ def update_goods(goods_id):
     title = request.form.get('title', '').strip()
     price = request.form.get('price', '').strip()
     description = request.form.get('description', '').strip()
+    tags_str = request.form.get('tags', '').strip()
 
     update_data = {}
     if title:
@@ -161,9 +268,21 @@ def update_goods(goods_id):
     if description:
         update_data['description'] = description
 
+    # Parse tags if provided
+    if tags_str:
+        try:
+            tags = json.loads(tags_str)
+        except (json.JSONDecodeError, TypeError):
+            tags = [t.strip() for t in tags_str.split(',') if t.strip()]
+        tags = tags[:10]
+        update_data['tags'] = [t[:20] for t in tags]
+
     if update_data:
         try:
-            GoodsUpdateSchema().load(update_data)
+            # Validate with schema (skip tags for partial validation)
+            validation_data = {k: v for k, v in update_data.items() if k != 'tags'}
+            if validation_data:
+                GoodsUpdateSchema().load(validation_data)
         except ValidationError as e:
             return fail(str(e.messages))
 
@@ -249,19 +368,47 @@ def toggle_status(goods_id):
 
 @goods_bp.route('/api/discover', methods=['GET'])
 def discover_feed():
-    """List goods with videos for the Discover feed (public, paginated)."""
+    """List goods with videos for the Discover feed (public, random order with dedup)."""
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 10, type=int)
     page_size = min(page_size, 30)
+    exclude_ids = request.args.get('exclude_ids', '').strip()
+    sort = request.args.get('sort', 'random').strip()
 
     query = Goods.query.filter(
         Goods.status == 1,
         Goods.deleted_at.is_(None),
         Goods.video.isnot(None),
         Goods.video != ''
-    ).order_by(Goods.created_at.desc())
+    )
+
+    # Exclude already-seen videos
+    if exclude_ids:
+        try:
+            excl = [int(x) for x in exclude_ids.split(',') if x.strip()]
+            if excl:
+                query = query.filter(~Goods.id.in_(excl))
+        except ValueError:
+            pass
 
     total = query.count()
+
+    # If all videos have been seen, reset — cycle through all videos
+    if total == 0 and exclude_ids:
+        query = Goods.query.filter(
+            Goods.status == 1,
+            Goods.deleted_at.is_(None),
+            Goods.video.isnot(None),
+            Goods.video != ''
+        )
+        total = query.count()
+
+    # Sort: random or newest
+    if sort == 'random':
+        query = query.order_by(func.rand())
+    else:
+        query = query.order_by(Goods.created_at.desc())
+
     items = query.offset((page - 1) * page_size).limit(page_size).all()
 
     return success(data={

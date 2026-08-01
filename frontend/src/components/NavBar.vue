@@ -9,6 +9,9 @@
         <router-link to="/discover" class="nav-link discover-link" :class="{ active: $route.name === 'Discover' }">
           发现
         </router-link>
+        <router-link to="/grass-square" class="nav-link" :class="{ active: $route.name === 'GrassSquare' }">
+          种草广场
+        </router-link>
         <router-link to="/my-shop" class="nav-link" :class="{ active: $route.name === 'MyShop' }">
           我的店铺
         </router-link>
@@ -65,10 +68,10 @@ async function handleLogout() {
   top: 0;
   z-index: 100;
   height: 64px;
-  background: rgba(255,255,255,0.85);
+  background: var(--nav-bg);
   backdrop-filter: blur(16px) saturate(180%);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
-  border-bottom: 1px solid rgba(229, 231, 235, 0.6);
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   padding: 0 24px;
@@ -93,7 +96,7 @@ async function handleLogout() {
 .logo {
   font-size: 26px;
   font-weight: 900;
-  background: linear-gradient(135deg, #F97316 0%, #FBBF24 100%);
+  background: var(--gradient-warm);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -132,12 +135,12 @@ async function handleLogout() {
 
 .nav-link:hover {
   color: var(--primary);
-  background: linear-gradient(135deg, rgba(249,115,22,0.06), rgba(249,115,22,0.02));
+  background: linear-gradient(135deg, var(--primary-light), transparent);
 }
 
 .nav-link.active {
   color: var(--primary);
-  background: linear-gradient(135deg, rgba(249,115,22,0.1), rgba(249,115,22,0.04));
+  background: linear-gradient(135deg, var(--primary-light), transparent);
   font-weight: 600;
 }
 .nav-link.active::after {

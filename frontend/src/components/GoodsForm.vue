@@ -45,6 +45,35 @@
         <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
 
         <!-- Video upload -->
+        <!-- Tags -->
+        <div class="form-group">
+          <label>商品标签（点击选择，最多10个）</label>
+          <div class="tag-selector">
+            <span
+              v-for="tag in predefinedTags"
+              :key="tag"
+              :class="['tag-chip', { active: selectedTags.includes(tag) }]"
+              @click="toggleTag(tag)"
+            >{{ tag }}</span>
+            <span
+              v-for="(tag, i) in customTags"
+              :key="'custom-' + i"
+              :class="['tag-chip', 'tag-custom', { active: selectedTags.includes(tag) }]"
+              @click="toggleTag(tag)"
+            >{{ tag }}</span>
+          </div>
+          <div class="tag-input-row">
+            <input
+              v-model="newTagInput"
+              class="tag-input-inline"
+              placeholder="输入自定义标签，回车添加"
+              maxlength="20"
+              @keyup.enter="addCustomTag"
+            />
+            <button class="btn-add-tag" @click="addCustomTag" :disabled="!newTagInput.trim()">+</button>
+          </div>
+        </div>
+
         <div class="form-group">
           <label>商品视频（可选，15秒以内，mp4/webm/mov，将在"发现"栏目播放）</label>
           <div class="video-upload-area">
@@ -72,8 +101,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
+import { getTags } from '../api/goods'
 
 const props = defineProps({
   goods: { type: Object, default: null }   // null = create mode, object = edit mode
@@ -94,6 +124,52 @@ const previewImages = ref((props.goods?.images || []).map(u => u))
 const newFiles = ref([])
 const submitting = ref(false)
 const errorMsg = ref('')
+
+// Tags
+const predefinedTags = ref([])
+const selectedTags = ref([...(props.goods?.tags || [])])
+const customTags = ref([])
+const newTagInput = ref('')
+
+async function fetchTags() {
+  try {
+    const res = await getTags()
+    predefinedTags.value = res.data || []
+    // Remove already selected from predefined list for custom display
+  } catch { /* silent */ }
+}
+
+function toggleTag(tag) {
+  const idx = selectedTags.value.indexOf(tag)
+  if (idx >= 0) {
+    selectedTags.value.splice(idx, 1)
+  } else {
+    if (selectedTags.value.length >= 10) {
+      toast.error('最多选择10个标签')
+      return
+    }
+    selectedTags.value.push(tag)
+  }
+}
+
+function addCustomTag() {
+  const val = newTagInput.value.trim()
+  if (!val) return
+  if (selectedTags.value.includes(val)) {
+    toast.error('标签已存在')
+    newTagInput.value = ''
+    return
+  }
+  if (selectedTags.value.length >= 10) {
+    toast.error('最多选择10个标签')
+    return
+  }
+  selectedTags.value.push(val)
+  if (!customTags.value.includes(val)) {
+    customTags.value.push(val)
+  }
+  newTagInput.value = ''
+}
 
 // Video state
 const videoPreview = ref(props.goods?.video || '')
@@ -190,6 +266,11 @@ async function handleSubmit() {
     formData.append('price', form.price)
     formData.append('description', form.description || '')
 
+    // Append tags as JSON string
+    if (selectedTags.value.length > 0) {
+      formData.append('tags', JSON.stringify(selectedTags.value))
+    }
+
     if (isEdit.value) {
       formData.append('keep_images', JSON.stringify(previewImages.value))
       if (removeVideoFlag.value) {
@@ -221,6 +302,10 @@ async function handleSubmit() {
     submitting.value = false
   }
 }
+
+onMounted(() => {
+  fetchTags()
+})
 </script>
 
 <style scoped>
@@ -363,6 +448,76 @@ async function handleSubmit() {
   justify-content: flex-end;
   gap: 12px;
   margin-top: 24px;
+}
+
+/* Tag selector */
+.tag-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-chip {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1.5px solid var(--border);
+  background: #fff;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.tag-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.tag-chip.active {
+  background: linear-gradient(135deg, #FFF7ED, #FFEDD5);
+  border-color: var(--primary);
+  color: var(--primary-dark);
+  font-weight: 600;
+}
+
+.tag-chip.tag-custom {
+  border-style: dashed;
+}
+
+.tag-input-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+.tag-input-inline {
+  flex: 1;
+  height: 36px;
+  font-size: 13px;
+  border-radius: 8px;
+  padding: 0 12px;
+}
+
+.btn-add-tag {
+  min-width: 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--gradient-primary);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-add-tag:disabled {
+  opacity: 0.4;
 }
 
 .error-msg {

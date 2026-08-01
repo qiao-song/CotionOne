@@ -8,3 +8,6 @@ from models.user import User
 from models.goods import Goods
 from models.order import Order
 from models.review import Review
+from models.post import Post
+from models.emoji import Emoji
+from models.video_comment import VideoComment

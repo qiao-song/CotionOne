@@ -16,6 +16,34 @@ from utils.upload import save_upload
 user_bp = Blueprint('user', __name__)
 
 
+@user_bp.route('/api/seller/search', methods=['GET'])
+def search_sellers():
+    """Search sellers by keyword (username)."""
+    keyword = request.args.get('keyword', '').strip()
+    if not keyword:
+        return success(data=[])
+
+    users = User.query.filter(
+        User.username.contains(keyword)
+    ).limit(20).all()
+
+    results = []
+    for u in users:
+        goods_count = Goods.query.filter(
+            Goods.seller_id == u.id,
+            Goods.status == 1,
+            Goods.deleted_at.is_(None)
+        ).count()
+        results.append({
+            'id': u.id,
+            'username': u.username,
+            'avatar': u.avatar or '/static/default.png',
+            'goods_count': goods_count
+        })
+
+    return success(data=results)
+
+
 @user_bp.route('/api/seller/<int:seller_id>', methods=['GET'])
 def get_seller_info(seller_id):
     """Get seller public profile with stats and goods."""

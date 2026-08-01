@@ -48,6 +48,16 @@
         <div class="stat-label">店铺评分</div>
         <div class="stat-sub" v-if="seller.review_count > 0">{{ seller.review_count }} 条评价</div>
       </div>
+      <div class="stat-card">
+        <div class="stat-icon">💳</div>
+        <div class="stat-num">¥{{ parseFloat(seller.total_spent || 0).toFixed(2) }}</div>
+        <div class="stat-label">累计消费</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📋</div>
+        <div class="stat-num">{{ seller.total_orders || 0 }}</div>
+        <div class="stat-label">累计下单</div>
+      </div>
     </div>
 
     <!-- Goods Grid -->
@@ -194,9 +204,12 @@ onMounted(() => {
 /* Stats Row */
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
   margin-bottom: 32px;
+}
+@media (max-width: 1024px) {
+  .stats-row { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 768px) {
   .stats-row { grid-template-columns: 1fr; }

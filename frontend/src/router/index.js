@@ -59,6 +59,18 @@ const routes = [
         name: 'SellerDetail',
         component: () => import('../views/SellerDetail.vue'),
         meta: { title: '卖家详情 - Tbao' }
+      },
+      {
+        path: 'grass-square',
+        name: 'GrassSquare',
+        component: () => import('../views/GrassSquare.vue'),
+        meta: { title: '种草广场 - Tbao' }
+      },
+      {
+        path: 'post-editor',
+        name: 'PostEditor',
+        component: () => import('../views/PostEditor.vue'),
+        meta: { title: '发布种草 - Tbao', requiresAuth: true }
       }
     ]
   },

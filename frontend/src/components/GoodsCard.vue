@@ -15,6 +15,10 @@
         <span v-if="goods.sales_count > 0" class="tag tag-sales">月销 {{ goods.sales_count }}</span>
         <span v-if="goods.avg_rating" class="tag tag-rating">★ {{ goods.avg_rating }}</span>
       </div>
+      <div class="card-tags" v-if="goods.tags && goods.tags.length > 0">
+        <span v-for="tag in goods.tags.slice(0, 3)" :key="tag" class="tag tag-item" @click.stop="handleTagClick(tag)">{{ tag }}</span>
+        <span v-if="goods.tags.length > 3" class="tag tag-more">+{{ goods.tags.length - 3 }}</span>
+      </div>
       <div class="card-price-row">
         <span class="card-price">¥{{ goods.price }}</span>
         <span class="card-shipping">包邮</span>
@@ -72,6 +76,10 @@ function handleAddToCart(e) {
   }
   cartStore.addItem(props.goods, 1)
   toast.success('已加入购物车')
+}
+
+function handleTagClick(tag) {
+  router.push(`/?tag=${encodeURIComponent(tag)}`)
 }
 
 function handleBuy(e) {
@@ -203,6 +211,24 @@ function handleBuy(e) {
 .tag-rating {
   background: linear-gradient(135deg, #FEE2E2, #FECACA);
   color: #DC2626;
+}
+
+.tag-item {
+  background: linear-gradient(135deg, #F3F4F6, #E5E7EB);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tag-item:hover {
+  background: linear-gradient(135deg, #FFF7ED, #FFEDD5);
+  color: var(--primary);
+}
+
+.tag-more {
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .card-price-row {

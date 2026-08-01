@@ -7,7 +7,7 @@ from config import (
     DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME,
     SQLALCHEMY_DATABASE_URI, SQLALCHEMY_TRACK_MODIFICATIONS,
     SECRET_KEY, JWT_SECRET_KEY, JWT_EXPIRY_DAYS, JWT_COOKIE_NAME,
-    UPLOAD_FOLDER, AVATAR_FOLDER, GOODS_FOLDER, VIDEOS_FOLDER, MAX_CONTENT_LENGTH
+    UPLOAD_FOLDER, AVATAR_FOLDER, GOODS_FOLDER, VIDEOS_FOLDER, EMOJI_FOLDER, POSTS_FOLDER, MAX_CONTENT_LENGTH
 )
 from models import db, migrate
 
@@ -49,6 +49,17 @@ def create_app():
         from controllers.review import review_bp
         app.register_blueprint(order_bp)
         app.register_blueprint(review_bp)
+    except ImportError:
+        pass
+    try:
+        from controllers.post import post_bp
+        from controllers.emoji import emoji_bp
+        from controllers.seller import seller_bp
+        from controllers.video_comment import video_comment_bp
+        app.register_blueprint(post_bp)
+        app.register_blueprint(emoji_bp)
+        app.register_blueprint(seller_bp)
+        app.register_blueprint(video_comment_bp)
     except ImportError:
         pass
 
@@ -113,6 +124,8 @@ def _ensure_directories():
     os.makedirs(AVATAR_FOLDER, exist_ok=True)
     os.makedirs(GOODS_FOLDER, exist_ok=True)
     os.makedirs(VIDEOS_FOLDER, exist_ok=True)
+    os.makedirs(EMOJI_FOLDER, exist_ok=True)
+    os.makedirs(POSTS_FOLDER, exist_ok=True)
 
 
 def _run_migrations():
@@ -143,6 +156,99 @@ def _run_migrations():
                 conn.execute(_db.text("ALTER TABLE goods ADD COLUMN video_shares INT DEFAULT 0 COMMENT '视频分享数'"))
                 conn.commit()
                 print("[MIGRATION] Added video columns to goods table")
+
+            # Add tags column if not exists
+            result = conn.execute(
+                _db.text("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS "
+                         "WHERE TABLE_SCHEMA = :db AND TABLE_NAME = 'goods' AND COLUMN_NAME = 'tags'"),
+                {'db': DB_NAME}
+            )
+            if result.scalar() == 0:
+                conn.execute(_db.text("ALTER TABLE goods ADD COLUMN tags JSON DEFAULT NULL COMMENT '商品标签数组'"))
+                conn.commit()
+                print("[MIGRATION] Added tags column to goods table")
+
+            # Add posts table if not exists
+            result = conn.execute(
+                _db.text("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES "
+                         "WHERE TABLE_SCHEMA = :db AND TABLE_NAME = 'posts'"),
+                {'db': DB_NAME}
+            )
+            if result.scalar() == 0:
+                conn.execute(_db.text("""
+                    CREATE TABLE posts (
+                        id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+                        user_id     BIGINT NOT NULL COMMENT '发布者ID',
+                        content     TEXT NOT NULL COMMENT '日志内容',
+                        images      JSON DEFAULT NULL COMMENT '图片URL数组',
+                        video       VARCHAR(500) DEFAULT NULL COMMENT '视频URL',
+                        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users(id),
+                        INDEX idx_user (user_id),
+                        INDEX idx_created (created_at)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='种草日志'
+                """))
+                conn.commit()
+                print("[MIGRATION] Created posts table")
+
+            # Add emojis table if not exists
+            result = conn.execute(
+                _db.text("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES "
+                         "WHERE TABLE_SCHEMA = :db AND TABLE_NAME = 'emojis'"),
+                {'db': DB_NAME}
+            )
+            if result.scalar() == 0:
+                conn.execute(_db.text("""
+                    CREATE TABLE emojis (
+                        id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+                        name            VARCHAR(50) NOT NULL COMMENT '表情名称',
+                        image_url       VARCHAR(500) NOT NULL COMMENT '表情图片URL',
+                        uploader_id     BIGINT NOT NULL COMMENT '上传者ID',
+                        download_count  INT DEFAULT 0 COMMENT '下载次数',
+                        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (uploader_id) REFERENCES users(id),
+                        INDEX idx_download (download_count),
+                        INDEX idx_created (created_at)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tbao表情包'
+                """))
+                conn.commit()
+                print("[MIGRATION] Created emojis table")
+
+            # Add video_comments table if not exists
+            result = conn.execute(
+                _db.text("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES "
+                         "WHERE TABLE_SCHEMA = :db AND TABLE_NAME = 'video_comments'"),
+                {'db': DB_NAME}
+            )
+            if result.scalar() == 0:
+                conn.execute(_db.text("""
+                    CREATE TABLE video_comments (
+                        id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+                        user_id     BIGINT NOT NULL COMMENT '评论者ID',
+                        goods_id    BIGINT NOT NULL COMMENT '视频商品ID',
+                        content     TEXT NOT NULL COMMENT '评论内容',
+                        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users(id),
+                        FOREIGN KEY (goods_id) REFERENCES goods(id),
+                        INDEX idx_goods (goods_id),
+                        INDEX idx_created (created_at)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='视频评论'
+                """))
+                conn.commit()
+                print("[MIGRATION] Created video_comments table")
+
+            # Make reviews.order_id nullable (allow non-buyer reviews)
+            result = conn.execute(
+                _db.text("SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS "
+                         "WHERE TABLE_SCHEMA = :db AND TABLE_NAME = 'reviews' AND COLUMN_NAME = 'order_id'"),
+                {'db': DB_NAME}
+            )
+            row = result.fetchone()
+            if row and row[0] == 'NO':
+                conn.execute(_db.text("ALTER TABLE reviews MODIFY COLUMN order_id BIGINT NULL"))
+                conn.commit()
+                print("[MIGRATION] Made reviews.order_id nullable")
     except Exception as e:
         print(f"[WARN] Migration check failed (may be OK if tables don't exist yet): {e}")
 

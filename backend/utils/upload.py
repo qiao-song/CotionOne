@@ -1,6 +1,6 @@
 import os
 import uuid
-from config import ALLOWED_IMAGE_EXTENSIONS, ALLOWED_VIDEO_EXTENSIONS, AVATAR_FOLDER, GOODS_FOLDER, VIDEOS_FOLDER
+from config import ALLOWED_IMAGE_EXTENSIONS, ALLOWED_VIDEO_EXTENSIONS, AVATAR_FOLDER, GOODS_FOLDER, VIDEOS_FOLDER, EMOJI_FOLDER, POSTS_FOLDER
 
 
 def allowed_image(filename: str) -> bool:
@@ -22,6 +22,10 @@ def save_upload(file, subfolder: str) -> str | None:
         target_dir = GOODS_FOLDER
     elif subfolder == 'avatars':
         target_dir = AVATAR_FOLDER
+    elif subfolder == 'emojis':
+        target_dir = EMOJI_FOLDER
+    elif subfolder == 'posts':
+        target_dir = POSTS_FOLDER
     else:
         return None
 

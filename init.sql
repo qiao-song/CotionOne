@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS goods (
     video       VARCHAR(500)   DEFAULT NULL COMMENT '商品视频URL',
     video_likes INT            DEFAULT 0 COMMENT '视频点赞数',
     video_shares INT           DEFAULT 0 COMMENT '视频分享数',
+    tags         JSON           DEFAULT NULL COMMENT '商品标签数组',
     seller_id   BIGINT         NOT NULL COMMENT '卖家ID',
     created_at  DATETIME       DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -71,3 +72,28 @@ CREATE TABLE IF NOT EXISTS reviews (
     INDEX idx_user (user_id),
     UNIQUE KEY uk_order (order_id) COMMENT '一个订单只能评论一次'
 ) ENGINE=InnoDB COMMENT='商品评论表';
+
+CREATE TABLE IF NOT EXISTS posts (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id     BIGINT NOT NULL COMMENT '发布者ID',
+    content     TEXT NOT NULL COMMENT '日志内容',
+    images      JSON DEFAULT NULL COMMENT '图片URL数组',
+    video       VARCHAR(500) DEFAULT NULL COMMENT '视频URL',
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    INDEX idx_user (user_id),
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='种草日志';
+
+CREATE TABLE IF NOT EXISTS emojis (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name            VARCHAR(50) NOT NULL COMMENT '表情名称',
+    image_url       VARCHAR(500) NOT NULL COMMENT '表情图片URL',
+    uploader_id     BIGINT NOT NULL COMMENT '上传者ID',
+    download_count  INT DEFAULT 0 COMMENT '下载次数',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (uploader_id) REFERENCES users(id),
+    INDEX idx_download (download_count),
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Tbao表情包';
